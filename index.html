@@ -8,32 +8,39 @@
     <script src="dberta.js"></script>
     <script>
         async function run() {
-            const berta = await dberta.open('berta1', {
-                3: {
-                    user: "@id3, firstname, age, firstname+age",
-                    events: "@id, date, title"
-                },
-                2: {
-                    user: "@id3, firstname, age, firstname+age"
-                },
-                1: {
-                    user: "@id2, firstname, age, firstname+age"
-                },
-                0: {
-                    user: "@id1, firstname, age, firstname+age"
-                }
-            });
 
             try {
-                const ta = await berta.begin('user', 'events');
+                const berta = await dberta.open('berta1', {
+                    3: {
+                        user: "@id3, firstname, age, firstname+age",
+                        events: "@id, date, title"
+                    },
+                    2: {
+                        user: "@id3, firstname, age, firstname+age"
+                    },
+                    1: {
+                        user: "@id2, firstname, age, firstname+age"
+                    },
+                    0: {
+                        user: "@id1, firstname, age, firstname+age"
+                    }
+                });
 
-                const r1 = await ta.user.add({ a: 1 });
-                const r2 = await ta.events.add({ a: r1 });
-                const r3 = await ta.events.count(8);
-                //berta.commit()
-                console.log(r1, r2, r3)
+                const ta = await berta.write('user', 'events');
+
+               // const r1 = await ta.user.add({ a: 1 });
+                //const r2 = await ta.events.add({ a: r1 });
+                
+                console.time('add');
+                const r3 = await ta.events.delete(dberta.between(1, 200000));
+                //const r3 = await ta.events.count(dberta.between(1, 90000));
+ /*                for(let n = 0; n < 100000; n++) {
+                    ta.events.add({a: n})
+                } */
+                 console.timeEnd('add');
+                 
+                console.log(/* r1, r2,  */r3)
             } catch (err) {
-              //  berta.abort()
                 console.error(err)
             }
         }
