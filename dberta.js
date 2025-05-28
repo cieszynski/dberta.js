@@ -7,7 +7,10 @@ Object.defineProperty(globalThis, 'dberta', {
     value: globalThis?.dberta ?? new class dberta {
 
         open = (dbName, schema) => new Promise((resolve, reject) => {
-            if (!schema) return reject('no schema');
+            if (!schema) return reject(new DOMException(
+                `database '${dbName}' no schema found`,
+                "NotFoundError"
+            ));
 
             const request = indexedDB.open(dbName, Object.keys(schema).at(-1));
             request.onerror = () => reject(request.error);
@@ -19,6 +22,13 @@ Object.defineProperty(globalThis, 'dberta', {
 
                 for (let v = event.oldVersion; v <= event.newVersion; v++) {
                     Object.entries(schema[v]).forEach(([storeName, definition]) => {
+
+                        // forbidden storename
+                        if (['transaction'].includes(storeName)) {
+                            throw new DOMException(
+                                `store name '${storeName}' not allowed`,
+                                'NotAllowedError');
+                        }
 
                         if (Array.from(db.objectStoreNames).includes(storeName)) {
                             db.deleteObjectStore(storeName)
@@ -65,67 +75,340 @@ Object.defineProperty(globalThis, 'dberta', {
             } // onupgradeneeded
 
             request.onsuccess = (event) => {
-                console.debug('onsuccess');
                 const db = event.target.result;
 
-                const begin = (ronly = false, ...storeNames) => {
+                const begin = (readOnly = false, ...storeNames) => {
+
                     let transaction;
 
                     return new Promise(async (resolve, reject) => {
                         try {
-                            transaction = db.transaction(storeNames, ronly ? 'readonly' : 'readwrite');
+                            transaction = db.transaction(storeNames, readOnly ? 'readonly' : 'readwrite');
 
                             resolve(storeNames.reduce((obj, storeName) => {
                                 const store = transaction.objectStore(storeName);
 
-                                obj[storeName] = {
+                                // Find all lowercase and uppercase
+                                // combinations of a string
+                                // called from ingnoreCase
+                                const permutation = (permutable) => {
 
-                                    execute(verb, ...args) {
+                                    const arr = [];
+                                    const permute = (str, tmp = '') => {
+                                        if (str.length == 0) {
+
+                                            arr.push(tmp);
+                                        } else {
+                                            permute(str.substring(1), tmp + str[0].toLowerCase());
+                                            if (isNaN(str[0])) {
+                                                permute(str.substring(1), tmp + str[0].toUpperCase());
+                                            }
+                                        }
+                                    }
+
+                                    permute(permutable);
+
+                                    // sort from ABC -> abc
+                                    return arr.sort();
+                                }
+
+                                // called from 
+                                // add, count, delete, get,  
+                                // getKey, getAll, getAllKeys, put
+                                const execute = (verb, ...args) => {
+                                    return new Promise(async (resolve, reject) => {
+                                        try {
+                                            store[verb](...args).onsuccess = (event) => {
+                                                resolve(event.target.result);
+                                            };
+                                        } catch (err) {
+                                            if (transaction) { transaction.abort(); }
+                                            reject(err);
+                                        }
+                                    });
+                                }
+
+                                // called from execute_and, execute_or
+                                const execute_cursor_query = (cursor, result) => {
+                                    result.push(cursor.value);
+                                }
+
+                                // called from execute_and, execute_or
+                                const execute_cursor_update = (cursor, result, payload) => {
+                                    // only {} records reach this, so we can merge
+                                    cursor
+                                        .update(Object.assign(cursor.value, payload))
+                                        .onsuccess = (event) => {
+                                            // add the key of the updated record
+                                            result.push(event.target.result);
+                                        };
+                                }
+
+                                // called from execute_and, execute_or
+                                const execute_cursor_delete = (cursor, result) => {
+                                    cursor
+                                        .delete()
+                                        // onsuccess result is always 'undefined', so
+                                        // insert number of deleted records
+                                        .onsuccess = () => { result.push(result.length + 1); }
+                                }
+
+                                // called from queryAnd, updateAnd, deleteAnd
+                                const execute_and = (verb, ...args) => {
+
+                                    return new Promise(async (resolve, reject) => {
+                                        try {
+                                            const result = []
+
+                                            const payload = /^(update)/.test(verb)
+                                                ? args.pop()
+                                                : undefined;
+
+                                            const indexName = args.shift();
+                                            const keyRange = args.shift();
+
+                                            const request = store
+                                                .index(indexName)
+                                                .openCursor(keyRange);
+                                            request.onsuccess = (event) => {
+                                                const cursor = event.target.result;
+
+                                                if (cursor) {
+
+                                                    // check more conditions
+                                                    // to fullfill every condition must passed
+                                                    for (let n = 0; n < args.length; n += 2) {
+                                                        const indexName = args[n];
+                                                        const keyRange = args[n + 1];
+
+                                                        if (!keyRange.includes(cursor.value[indexName])) {
+                                                            cursor.continue();
+                                                            return;
+                                                        }
+                                                    }
+
+                                                    switch (verb) {
+                                                        case 'query':
+                                                            execute_cursor_query(cursor, result);
+                                                            break;
+                                                        case 'update':
+                                                            execute_cursor_update(cursor, result, payload);
+                                                            break;
+                                                        case 'delete':
+                                                            execute_cursor_delete(cursor, result);
+                                                            break;
+                                                        default:
+                                                            console.error('unknown verb ', verb);
+                                                    }
+
+                                                    cursor.continue();
+                                                } else {
+                                                    resolve(result);
+                                                }
+                                            }
+                                        } catch (err) {
+                                            if (transaction) { transaction.abort(); }
+                                            reject(err);
+                                        }
+                                    });
+                                }
+
+                                // called from queryOr, updateOr, deleteOr
+                                const execute_or = (verb, ...args) => {
+
+                                    return new Promise(async (resolve, reject) => {
+                                        try {
+                                            const result = new class extends Array {
+                                                push(obj) {
+                                                    // Objects are only stringified the same, Set() won't work
+                                                    if (!this.some(entry => JSON.stringify(entry) === JSON.stringify(obj))) {
+                                                        super.push(obj);
+                                                    }
+                                                }
+                                            }
+
+                                            const payload = /^(update)/.test(verb)
+                                                ? args.pop()
+                                                : undefined;
+
+                                            let count = args.length / 2;
+
+                                            while (args.length) {
+                                                const indexName = args.shift();
+                                                const keyRange = args.shift();
+
+                                                const request = store
+                                                    .index(indexName)
+                                                    .openCursor(keyRange);
+                                                request.onsuccess = (event) => {
+                                                    const cursor = event.target.result;
+
+                                                    if (cursor) {
+                                                        switch (verb) {
+                                                            case 'query':
+                                                                execute_cursor_query(cursor, result);
+                                                                break;
+                                                            case 'update':
+                                                                execute_cursor_update(cursor, result, payload);
+                                                                break;
+                                                            case 'delete':
+                                                                execute_cursor_delete(cursor, result);
+                                                                break;
+                                                            default:
+                                                                console.error('unknown verb ', verb);
+                                                        }
+
+                                                        cursor.continue();
+                                                    }
+
+                                                    // 
+                                                    if (!args.length && result.length === count) {
+                                                        resolve(result)
+                                                    }
+                                                }
+                                            }
+                                        } catch (err) {
+                                            if (transaction) { transaction.abort(); }
+                                            reject(err);
+                                        }
+                                    });
+                                }
+
+                                obj[storeName] = {
+                                    add(obj, key) { return execute('add', obj, key); },
+
+                                    count(keyOrKeyRange) { return execute('count', keyOrKeyRange); },
+
+                                    delete(keyOrKeyRange) { return execute('delete', keyOrKeyRange); },
+
+                                    get(keyOrKeyRange) { return execute('get', keyOrKeyRange); },
+
+                                    getKey(keyOrKeyRange) { return execute('getKey', keyOrKeyRange); },
+
+                                    getAll(keyRange, limit) { return execute('getAll', keyRange, limit); },
+
+                                    getAllKeys(keyRange, limit) { return execute('getAllKeys', keyRange, limit); },
+
+                                    put(obj, key) { return execute('put', obj, key); },
+
+                                    where(indexName, keyRange, limit = 0, direction = 'next') {
+
                                         return new Promise(async (resolve, reject) => {
                                             try {
-                                                store[verb](...args).onsuccess = (event) => {
-                                                    resolve(event.target.result);
+                                                const result = [];
+
+                                                const request = store.index(indexName)
+                                                    .openCursor(keyRange, direction);
+
+                                                request.onsuccess = () => {
+                                                    const cursor = request.result;
+
+                                                    if (cursor) {
+                                                        result.push(cursor.value);
+
+                                                        if (!(limit && result.length >= limit)) {
+                                                            cursor.continue();
+                                                            return;
+                                                        }
+                                                    }
+                                                    resolve(result);
+
                                                 };
                                             } catch (err) {
                                                 if (transaction) { transaction.abort(); }
                                                 reject(err);
                                             }
                                         });
-                                    },
+                                    }, // END where
 
-                                    add(obj, key) { return this.execute('add', obj, key); },
+                                    queryAnd(...args) { return execute_and('query', ...args) },
+                                    updateAnd(...args) { return execute_and('update', ...args) },
+                                    deleteAnd(...args) { return execute_and('delete', ...args) },
 
-                                    count(keyOrKeyRange) { return this.execute('count', keyOrKeyRange); },
+                                    queryOr(...args) { return execute_or('query', ...args) },
+                                    updateOr(...args) { return execute_or('update', ...args) },
+                                    deleteOr(...args) { return execute_or('delete', ...args) },
 
-                                    delete(keyOrKeyRange) { return this.execute('delete', keyOrKeyRange); },
+                                    ignoreCase(indexName, str, startsWith = false) {
+                                        let n = 0;
+                                        const permutations = permutation(str);
 
-                                    get(keyOrKeyRange) { return this.execute('get', keyOrKeyRange); },
+                                        return new Promise(async (resolve, reject) => {
+                                            try {
+                                                const result = [];
 
-                                    getKey(keyOrKeyRange) { return this.execute('getKey', keyOrKeyRange); },
+                                                const request = store
+                                                    .index(indexName)
+                                                    .openCursor();
+                                                request.onsuccess = (event) => {
+                                                    const cursor = event.target.result;
 
-                                    getAll(keyRange, limit) { return this.execute('getAll', keyRange, limit); },
+                                                    if (cursor) {
 
-                                    getAllKeys(keyRange, limit) { return this.execute('getAllKeys', keyRange, limit); },
+                                                        const value = cursor.value[indexName];
+                                                        const length = startsWith
+                                                            ? permutations[0].length
+                                                            : value.length;
 
-                                    put(obj, key) { return execute('put', obj, key); },
+                                                        // find cursor.value[indexName] > permutation
+                                                        while (value.substring(0, length) > permutations[n]) {
+
+                                                            // there are no more permutations
+                                                            if (++n >= permutations.length) {
+                                                                resolve(result);
+                                                                return;
+                                                            }
+                                                        }
+
+                                                        if ((startsWith && value.indexOf(permutations[n]) === 0)
+                                                            || value === permutations[n]) {
+
+                                                            result.push(cursor.value);
+                                                            cursor.continue();
+                                                        } else {
+                                                            cursor.continue(permutations[n]);
+                                                        }
+                                                    }
+                                                }
+                                            } catch (err) {
+                                                if (transaction) { transaction.abort(); }
+                                                reject(err);
+                                            }
+                                        });
+                                    } // END ignoreCase
                                 }
 
                                 return obj;
-                            }, {}));
+                            }, { transaction: transaction /* to access transaction from outside */ }));
                         } catch (err) {
                             if (transaction) { transaction.abort(); }
                             reject(err);
                         }
                     });
-                }
+                } // END begin
 
                 resolve({
                     write(...args) { return begin(false, ...args); },
                     read(...args) { return begin(true, ...args); },
-                    close() { db.close(); },
+                    close() { db.close(); }
                 });
             } // request.onsuccess
-        }); // open
+        }); // END open
+
+        delete = (dbName) => new Promise((resolve, reject) => {
+
+            indexedDB.databases()
+                .then(arr => {
+                    if (arr.find(obj => obj.name === dbName)) {
+                        const request = indexedDB.deleteDatabase(dbName);
+                        request.onerror = () => reject(request.error);
+                        request.onsuccess = () => resolve(request.result);
+                    } else reject(new DOMException(
+                        `database '${dbName}' was not found`,
+                        "NotFoundError"
+                    ));
+                });
+        }); // END delete
 
         // functions to build keyranges
         eq = (z) => IDBKeyRange.only(z);

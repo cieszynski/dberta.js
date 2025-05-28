@@ -10,6 +10,8 @@
         async function run() {
 
             try {
+                //dberta.delete('berta1');
+                //return
                 const berta = await dberta.open('berta1', {
                     3: {
                         user: "@id3, firstname, age, firstname+age",
@@ -28,15 +30,30 @@
 
                 const ta = await berta.write('user', 'events');
 
-               // const r1 = await ta.user.add({ a: 1 });
-                //const r2 = await ta.events.add({ a: r1 });
-                
                 console.time('add');
-                const r3 = await ta.events.delete(dberta.between(1, 200000));
+r3 = await ta.user.ignoreCase('firstname', 'JUP', 1)
+/*                 r3 = await ta.user.queryAnd(
+                    'firstname', dberta.eq('jupp'), 
+                    //'firstname', dberta.eq('bernd'),
+                    'age', dberta.between(10, 30) //, {b:2}
+                )
+             */    
+/* 
+                await ta.user.add({ firstname: 'jupp', age: 10 });
+                await ta.user.add({ firstname: 'berta', age: 20 });
+                await ta.user.add({ firstname: 'klara', age: 30 });
+                await ta.user.add({ firstname: 'bernd', age: 40 });
+                 */
+                //
+                //const r3 = await ta.events.add({ a: 'r1' });
+                //const r3 = await ta.events.delete(dberta.between(1, 200000));
                 //const r3 = await ta.events.count(dberta.between(1, 90000));
- /*                for(let n = 0; n < 100000; n++) {
-                    ta.events.add({a: n})
+/*                 for(let n = 0; n < 10; n++) {
+                    ta.user.add({firstname: 'jupp', age: n})
                 } */
+              // const r3 = await ta.user.where('age', dberta.between(5,9), 1, 'prev')
+             //ta.transaction.abort()
+             //  berta.abort()
                  console.timeEnd('add');
                  
                 console.log(/* r1, r2,  */r3)
