@@ -20,14 +20,14 @@ Object.defineProperty(globalThis, 'dberta', {
 
                 const db = request.result;
 
-                for (let v = event.oldVersion; v <= event.newVersion; v++) {
+                for (let v = event.oldVersion + 1; v <= event.newVersion; v++) {
                     Object.entries(schema[v]).forEach(([storeName, definition]) => {
 
                         // forbidden storename
                         if (['transaction'].includes(storeName)) {
-                            throw new DOMException(
+                            return reject(new DOMException(
                                 `store name '${storeName}' not allowed`,
-                                'NotAllowedError');
+                                'NotAllowedError'));
                         }
 
                         if (Array.from(db.objectStoreNames).includes(storeName)) {
@@ -77,7 +77,7 @@ Object.defineProperty(globalThis, 'dberta', {
             request.onsuccess = (event) => {
                 const db = event.target.result;
 
-                const begin = (readOnly = false, ...storeNames) => {
+                const transactionBegin = (readOnly = false, ...storeNames) => {
 
                     let transaction;
 
@@ -379,35 +379,29 @@ Object.defineProperty(globalThis, 'dberta', {
                                 }
 
                                 return obj;
-                            }, { transaction: transaction /* to access transaction from outside */ }));
+                            }, { // to access from outside
+                                transaction: transaction
+                            }));
                         } catch (err) {
                             if (transaction) { transaction.abort(); }
                             reject(err);
                         }
                     });
-                } // END begin
+                } // END transactionBegin
 
                 resolve({
-                    write(...args) { return begin(false, ...args); },
-                    read(...args) { return begin(true, ...args); },
-                    close() { db.close(); }
+                    write(...args) { return transactionBegin(false, ...args); },
+                    read(...args) { return transactionBegin(true, ...args); },
+                    close() { db.close(); },
+                    db: db // to access from outside
                 });
             } // request.onsuccess
         }); // END open
 
         delete = (dbName) => new Promise((resolve, reject) => {
-
-            indexedDB.databases()
-                .then(arr => {
-                    if (arr.find(obj => obj.name === dbName)) {
-                        const request = indexedDB.deleteDatabase(dbName);
-                        request.onerror = () => reject(request.error);
-                        request.onsuccess = () => resolve(request.result);
-                    } else reject(new DOMException(
-                        `database '${dbName}' was not found`,
-                        "NotFoundError"
-                    ));
-                });
+            const request = indexedDB.deleteDatabase(dbName);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
         }); // END delete
 
         // functions to build keyranges
