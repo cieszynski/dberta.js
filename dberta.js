@@ -393,16 +393,20 @@ Object.defineProperty(globalThis, 'dberta', {
                     write(...args) { return transactionBegin(false, ...args); },
                     read(...args) { return transactionBegin(true, ...args); },
                     close() { db.close(); },
-                    db: db // to access from outside
+                    delete() {
+                        db.close();
+                        return new Promise((resolve, reject) => {
+                            const request = indexedDB.deleteDatabase(db.name);
+                            request.onerror = () => reject(request.error);
+                            request.onsuccess = () => resolve(request.result);
+                        });
+                    },
+                    get objectStoreNames() { return db.objectStoreNames; },
+                    get version() { return db.version; },
+                    get name() { return db.name; }
                 });
             } // request.onsuccess
         }); // END open
-
-        delete = (dbName) => new Promise((resolve, reject) => {
-            const request = indexedDB.deleteDatabase(dbName);
-            request.onerror = () => reject(request.error);
-            request.onsuccess = () => resolve(request.result);
-        }); // END delete
 
         // functions to build keyranges
         eq = (z) => IDBKeyRange.only(z);

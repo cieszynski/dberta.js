@@ -11,7 +11,7 @@
             const test = 'open: schema required';
             try {
                 console.time(test);
-                const berta = await dberta.open('berta-test');
+                const berta = await dberta.open('berta-test1');
             } catch ({ name, message }) {
                 console.assert(name === 'NotFoundError', test);
                 console.timeEnd(test);
@@ -20,16 +20,18 @@
 
         async function test_open2() {
             const test = 'open: store name not allowed';
+            
             try {
                 console.time(test);
-                const berta = await dberta.open('berta-test', {
+                const berta = await dberta.open('berta-test2', {
                     1: {
                         transaction: "@id"
                     }
                 });
             } catch ({ name, message }) {
                 console.assert(name === 'NotAllowedError', test);
-                dberta.delete('berta-test');
+                // closing tages time
+                indexedDB.deleteDatabase('berta-test2');
                 console.timeEnd(test);
             }
         }
@@ -38,7 +40,7 @@
             const test = 'open: create stores';
             try {
                 console.time(test);
-                const berta = await dberta.open('berta-test', {
+                const berta = await dberta.open('berta-test3', {
                     1: {
                         a: "@id, i1",
                         b: "@, i1, *i2",
@@ -47,41 +49,48 @@
                     }
                 });
 
-                Array.from(berta.db.objectStoreNames).forEach(storeName => {
-                    console.assert(['a', 'b', 'c', 'd'].includes(storeName), `store ${storeName} not created`);
-                    const store = berta.db.transaction(storeName).objectStore(storeName)
+                berta.close();
 
-                    switch (store.name) {
-                        case 'a':
-                            console.assert(store.autoIncrement === true);
-                            console.assert(store.keyPath === 'id');
-                            console.assert(store.indexNames.contains('i1'));
-                            break;
-                        case 'b':
-                            console.assert(store.autoIncrement === true);
-                            console.assert(store.keyPath === null);
-                            console.assert(store.indexNames.contains('i1'));
-                            console.assert(store.indexNames.contains('i2'));
-                            console.assert(store.index('i2').multiEntry === true);
-                            break;
-                        case 'c':
-                            console.assert(store.autoIncrement === false);
-                            console.assert(store.keyPath === 'id');
-                            console.assert(store.indexNames.contains('i1'));
-                            console.assert(store.indexNames.contains('i2'));
-                            console.assert(store.index('i2').unique === true);
-                            console.assert(store.indexNames.contains('i1+i2'));
-                            console.assert(Array.isArray(store.index('i1+i2').keyPath));
-                            break;
-                        case 'd':
-                            console.assert(store.autoIncrement === false);
-                            console.assert(store.keyPath === null);
-                            console.assert(store.indexNames.contains('i1'));
-                            break;
-                    }
-                });
+                indexedDB.open('berta-test3').onsuccess = (event) => {
+                    const db = event.target.result;
+                    Array.from(db.objectStoreNames).forEach(storeName => {
+                        console.assert(['a', 'b', 'c', 'd'].includes(storeName), `store ${storeName} not created`);
+                        const store = db.transaction(storeName).objectStore(storeName)
 
-                dberta.delete('berta-test');
+                        switch (store.name) {
+                            case 'a':
+                                console.assert(store.autoIncrement === true);
+                                console.assert(store.keyPath === 'id');
+                                console.assert(store.indexNames.contains('i1'));
+                                break;
+                            case 'b':
+                                console.assert(store.autoIncrement === true);
+                                console.assert(store.keyPath === null);
+                                console.assert(store.indexNames.contains('i1'));
+                                console.assert(store.indexNames.contains('i2'));
+                                console.assert(store.index('i2').multiEntry === true);
+                                break;
+                            case 'c':
+                                console.assert(store.autoIncrement === false);
+                                console.assert(store.keyPath === 'id');
+                                console.assert(store.indexNames.contains('i1'));
+                                console.assert(store.indexNames.contains('i2'));
+                                console.assert(store.index('i2').unique === true);
+                                console.assert(store.indexNames.contains('i1+i2'));
+                                console.assert(Array.isArray(store.index('i1+i2').keyPath));
+                                break;
+                            case 'd':
+                                console.assert(store.autoIncrement === false);
+                                console.assert(store.keyPath === null);
+                                console.assert(store.indexNames.contains('i1'));
+                                break;
+                        }
+                    });
+
+                    db.close();
+                }
+
+                await berta.delete();
             } catch ({ name, message }) {
                 console.error(name, message);
             } finally {
@@ -89,9 +98,9 @@
             }
         }
 
-        async function run() {
-            // await test_open1();
-            // await test_open2();
+        async function runtests() {
+            await test_open1();
+            await test_open2();
             await test_open3();
             try {
 
@@ -99,13 +108,11 @@
                 console.error(err);
             }
         }
-
-        run()
     </script>
 </head>
 
 <body>
-
+    <button onclick="runtests()">run tests</button>
 </body>
 
 </html>
