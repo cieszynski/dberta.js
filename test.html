@@ -6,107 +6,16 @@
     <meta charset="utf-8">
 
     <script src="dberta.js"></script>
+    <script src="dberta.tests.js"></script>
     <script>
-        async function test_open1() {
-            const test = 'open: schema required';
-            try {
-                console.time(test);
-                const berta = await dberta.open('berta-test1');
-            } catch ({ name, message }) {
-                console.assert(name === 'NotFoundError', test);
-                console.timeEnd(test);
+
+        function runtests() {
+            if (0) {
+                test_open_without_scheme();
+                test_open_with_forbidden_storename();
+                test_open_create_stores();
             }
-        }
-
-        async function test_open2() {
-            const test = 'open: store name not allowed';
-            
-            try {
-                console.time(test);
-                const berta = await dberta.open('berta-test2', {
-                    1: {
-                        transaction: "@id"
-                    }
-                });
-            } catch ({ name, message }) {
-                console.assert(name === 'NotAllowedError', test);
-                // closing tages time
-                indexedDB.deleteDatabase('berta-test2');
-                console.timeEnd(test);
-            }
-        }
-
-        async function test_open3() {
-            const test = 'open: create stores';
-            try {
-                console.time(test);
-                const berta = await dberta.open('berta-test3', {
-                    1: {
-                        a: "@id, i1",
-                        b: "@, i1, *i2",
-                        c: "id, i1, !i2, i1+i2",
-                        d: ", i1"
-                    }
-                });
-
-                berta.close();
-
-                indexedDB.open('berta-test3').onsuccess = (event) => {
-                    const db = event.target.result;
-                    Array.from(db.objectStoreNames).forEach(storeName => {
-                        console.assert(['a', 'b', 'c', 'd'].includes(storeName), `store ${storeName} not created`);
-                        const store = db.transaction(storeName).objectStore(storeName)
-
-                        switch (store.name) {
-                            case 'a':
-                                console.assert(store.autoIncrement === true);
-                                console.assert(store.keyPath === 'id');
-                                console.assert(store.indexNames.contains('i1'));
-                                break;
-                            case 'b':
-                                console.assert(store.autoIncrement === true);
-                                console.assert(store.keyPath === null);
-                                console.assert(store.indexNames.contains('i1'));
-                                console.assert(store.indexNames.contains('i2'));
-                                console.assert(store.index('i2').multiEntry === true);
-                                break;
-                            case 'c':
-                                console.assert(store.autoIncrement === false);
-                                console.assert(store.keyPath === 'id');
-                                console.assert(store.indexNames.contains('i1'));
-                                console.assert(store.indexNames.contains('i2'));
-                                console.assert(store.index('i2').unique === true);
-                                console.assert(store.indexNames.contains('i1+i2'));
-                                console.assert(Array.isArray(store.index('i1+i2').keyPath));
-                                break;
-                            case 'd':
-                                console.assert(store.autoIncrement === false);
-                                console.assert(store.keyPath === null);
-                                console.assert(store.indexNames.contains('i1'));
-                                break;
-                        }
-                    });
-
-                    db.close();
-                }
-
-                await berta.delete();
-            } catch ({ name, message }) {
-                console.error(name, message);
-            } finally {
-                console.timeEnd(test);
-            }
-        }
-
-        async function runtests() {
-            await test_open1();
-            await test_open2();
-            await test_open3();
-            try {
-
-            } catch ({ name, message }) {
-                console.error(err);
-            }
+            test_open_multiple_versions();
         }
     </script>
 </head>
