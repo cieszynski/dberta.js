@@ -231,9 +231,10 @@ Object.defineProperty(globalThis, 'dberta', {
                                                 ? args.pop()
                                                 : undefined;
 
-                                            let count = args.length / 2;
-
+                                            let threads = 0;
+                                            
                                             while (args.length) {
+                                                ++threads;
                                                 const indexName = args.shift();
                                                 const keyRange = args.shift();
 
@@ -259,11 +260,10 @@ Object.defineProperty(globalThis, 'dberta', {
                                                         }
 
                                                         cursor.continue();
-                                                    }
-
-                                                    // 
-                                                    if (!args.length && result.length === count) {
-                                                        resolve(result)
+                                                    } else {
+                                                        if (--threads <= 0) {
+                                                            resolve(result);
+                                                        }
                                                     }
                                                 }
                                             }
@@ -368,6 +368,8 @@ Object.defineProperty(globalThis, 'dberta', {
                                                         } else {
                                                             cursor.continue(permutations[n]);
                                                         }
+                                                    } else {
+                                                        resolve(result);
                                                     }
                                                 }
                                             } catch (err) {
@@ -380,7 +382,9 @@ Object.defineProperty(globalThis, 'dberta', {
 
                                 return obj;
                             }, { // to access from outside
-                                transaction: transaction
+                                //transaction: transaction
+                                commit() { transaction.commit(); },
+                                abort() { transaction.abort(); }
                             }));
                         } catch (err) {
                             if (transaction) { transaction.abort(); }

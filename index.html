@@ -31,44 +31,163 @@
                 const ta = await berta.write('user', 'events');
 
                 console.time('add');
-r3 = await ta.user.ignoreCase('firstname', 'JUP', 1)
-/*                 r3 = await ta.user.queryAnd(
-                    'firstname', dberta.eq('jupp'), 
-                    //'firstname', dberta.eq('bernd'),
-                    'age', dberta.between(10, 30) //, {b:2}
-                )
-             */    
-/* 
-                await ta.user.add({ firstname: 'jupp', age: 10 });
-                await ta.user.add({ firstname: 'berta', age: 20 });
-                await ta.user.add({ firstname: 'klara', age: 30 });
-                await ta.user.add({ firstname: 'bernd', age: 40 });
-                 */
+                r3 = await ta.user.ignoreCase('firstname', 'JUP', 1)
+                /*                 r3 = await ta.user.queryAnd(
+                                    'firstname', dberta.eq('jupp'), 
+                                    //'firstname', dberta.eq('bernd'),
+                                    'age', dberta.between(10, 30) //, {b:2}
+                                )
+                             */
+                /* 
+                                await ta.user.add({ firstname: 'jupp', age: 10 });
+                                await ta.user.add({ firstname: 'berta', age: 20 });
+                                await ta.user.add({ firstname: 'klara', age: 30 });
+                                await ta.user.add({ firstname: 'bernd', age: 40 });
+                                 */
                 //
                 //const r3 = await ta.events.add({ a: 'r1' });
                 //const r3 = await ta.events.delete(dberta.between(1, 200000));
                 //const r3 = await ta.events.count(dberta.between(1, 90000));
-/*                 for(let n = 0; n < 10; n++) {
-                    ta.user.add({firstname: 'jupp', age: n})
-                } */
-              // const r3 = await ta.user.where('age', dberta.between(5,9), 1, 'prev')
-             //ta.transaction.abort()
-             //  berta.abort()
-                 console.timeEnd('add');
-                 
+                /*                 for(let n = 0; n < 10; n++) {
+                                    ta.user.add({firstname: 'jupp', age: n})
+                                } */
+                // const r3 = await ta.user.where('age', dberta.between(5,9), 1, 'prev')
+                //ta.transaction.abort()
+                //  berta.abort()
+                console.timeEnd('add');
+
                 console.log(/* r1, r2,  */r3)
             } catch (err) {
                 console.error(err)
             }
         }
 
-        run()
+        // run()
+    </script>
+    <script>
+        let berta;
+
+        dberta.open('berta1', {
+            1: {
+                user: "@id3, *firstname, lastname, age, lastname+age",
+                events: "@id, date, title, !code"
+            }
+        }).then((result) => { berta = result });
+
+        async function init() {
+            try {
+                const ta = await berta.write('user', 'events');
+
+                await ta.user.add(
+                    {
+                        firstname: 'Albert',
+                        lastname: 'Einstein',
+                        age: 76
+                    });
+
+                await ta.user.add(
+                    {
+                        firstname: 'Isaac',
+                        lastname: 'Newton',
+                        age: 84
+                    });
+
+                await ta.events.add(
+                    {
+                        date: new Date(),
+                        title: 'Current Date',
+                        code: crypto.randomUUID()
+                    });
+
+                ta.commit();
+            } catch ({ name, message }) {
+                console.error(name, message);
+            }
+        }
+
+        async function query() {
+            try {
+                const ta = await berta.read('user');
+
+                const r1 = await ta.user.getAll();
+                // [
+                //  {firstname: 'Albert', lastname: 'Einstein', age: 76, id3: 1},
+                //  {firstname: 'Isaac', lastname: 'Newton', age: 84, id3: 2}
+                // ]
+                console.log(r1);
+
+                const r2 = await ta.user.where('firstname', dberta.eq('Albert'));
+                // [
+                //  {firstname: 'Albert', lastname: 'Einstein', age: 76, id3: 1
+                // ]
+                console.log(r2);
+
+                const r3 = await ta.user.queryAnd('firstname', dberta.eq('Isaac'));
+                // [
+                //  {firstname: 'Isaac', lastname: 'Newton', age: 84, id3: 2}
+                // ]
+                console.log(r3);
+
+                const r4 = await ta.user.queryOr('firstname', dberta.eq('Isaac'), 'age', dberta.lt(80));
+                // [
+                //  {firstname: 'Isaac', lastname: 'Newton', age: 84, id3: 2},
+                //  {firstname: 'Albert', lastname: 'Einstein', age: 76, id3: 1}
+                // ]
+                console.log(r4);
+
+                const r5 = await ta.user.ignoreCase('firstname', 'ISAAC');
+                // [
+                //  {"firstname": "Isaac", "lastname": "Newton", "age": 84, "id3": 2}
+                // ]
+                console.log(r5);
+
+            } catch ({ name, message }) {
+                console.error(name, message);
+            }
+        }
+
+        async function update() {
+            try {
+                const ta = await berta.write('user');
+
+                const r6 = await ta.user.updateOr('age', dberta.lt(80), 'firstname', 'Albert', {
+                    nobelprize: 1921
+                });
+
+                // [1]
+                console.log(r6);
+            } catch ({ name, message }) {
+                console.error(name, message);
+            }
+        }
+
+        async function abort() {
+            try {
+                const ta = await berta.write('user');
+
+                const r7 = await ta.user.updateOr('age', dberta.gt(80), 'firstname', 'Isaac', {
+                    nobelprize: 1921
+                });
+
+                ta.abort();
+
+                // shows the key, but no record was modified
+                // [1]
+                console.log(r7);
+
+            } catch ({ name, message }) {
+                console.error(name, message);
+            }
+        }
     </script>
 </head>
 
 <body>
     dberta
-
+    <button onclick="init()">run init()</button>
+    <button onclick="query()">run query()</button>
+    <button onclick="update()">run update()</button>
+    <button onclick="abort()">run abort()</button>
 </body>
 
 </html>
