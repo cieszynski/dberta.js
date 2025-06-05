@@ -1,6 +1,6 @@
 # dberta
 
-dberta is a wrapper for indexedDB.
+dberta is a promise-based and transactional wrapper for indexedDB.
 
 ## Example
 
@@ -71,7 +71,7 @@ async function query() {
         // ]
         console.log(r2);
 
-        const r3 = await ta.user.queryAnd("firstname", dberta.eq("Isaac"));
+        const r3 = await ta.user.queryAnd("firstname", dberta.eq("Isaac"), "lastname", dberta.eq("Newton") );
         // [
         //  {firstname: 'Isaac', lastname: 'Newton', age: 84, id3: 2}
         // ]
@@ -140,7 +140,7 @@ async function abort() {
 
         ta.abort();
 
-        // shows the key, but no record was modified
+        // shows a key, but no record was modified
         // [1]
         console.log(r7);
     } catch ({ name, message }) {
