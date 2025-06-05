@@ -1,6 +1,8 @@
 # dberta
 
-dberta is a promise-based and transactional wrapper for indexedDB.
+***dberta.js*** is a promise-based and transactional wrapper for indexedDB.
+
+Find more information on the [wiki](wiki).
 
 ## Example
 
