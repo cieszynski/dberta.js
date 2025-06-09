@@ -6,24 +6,31 @@ Object.defineProperty(globalThis, 'dberta', {
 
     value: globalThis?.dberta ?? new class dberta {
 
-        open = (dbName, schema) => new Promise((resolve, reject) => {
-            if (!schema) return reject(new DOMException(
-                `database '${dbName}' no schema found`,
+        open = (dbName, scheme) => new Promise((resolve, reject) => {
+            if (!scheme) return reject(new DOMException(
+                `database '${dbName}' no scheme found`,
                 "NotFoundError"
             ));
 
-            const request = indexedDB.open(dbName, Object.keys(schema).at(-1));
+            let isUpdated = false;
+
+            // order the versions numerically
+            const orderedSchemes = Object.keys(scheme).sort((a, b) => parseFloat(a) - parseFloat(b));
+
+            // open the latest version or start an upgrade
+            const request = indexedDB.open(dbName, orderedSchemes.at(-1));
+
             request.onerror = () => reject(request.error);
-            request.onblocked = () => { reject(request.error); }
+            request.onblocked = () => reject(request.error);
             request.onupgradeneeded = (event) => {
                 console.debug('onupgradeneeded');
-
                 const db = request.result;
+                isUpdated = true;
 
                 for (let v = event.oldVersion + 1; v <= event.newVersion; v++) {
-                    Object.entries(schema[v]).forEach(([storeName, definition]) => {
+                    Object.entries(scheme[v]).forEach(([storeName, definition]) => {
 
-                        // forbidden storename
+                        // forbidden storename(s)
                         if (['transaction'].includes(storeName)) {
                             return reject(new DOMException(
                                 `store name '${storeName}' not allowed`,
@@ -37,8 +44,24 @@ Object.defineProperty(globalThis, 'dberta', {
                         const [keypath, ...indexes] = definition.split(/\s*(?:,)\s*/);
 
                         const store = db.createObjectStore(storeName, {
-                            // if keyPath.length is 0 return undefined
-                            keyPath: keypath.replace(/[\@]/, '') || undefined,
+                            // if keyPath.length is 0 set keyPath
+                            // to undefined (out-of-line keys)
+                            keyPath: keypath
+                                .split(/\+/)
+                                // at this point keypath is an array
+                                .map(elem => elem.replace(/[\@]/, ''))
+                                .reduce((prev, cur, idx) => {
+                                    switch (idx) {
+                                        case 0:
+                                            // keypath is keyPath:
+                                            return cur;
+                                        case 1:
+                                            // keypath is compound key
+                                            return [prev, cur];
+                                        default:
+                                            return [...prev, cur];
+                                    }
+                                }) || undefined,
                             autoIncrement: /^[\@]/.test(keypath)
                         });
 
@@ -70,11 +93,12 @@ Object.defineProperty(globalThis, 'dberta', {
 
                             console.debug("index '%s' created", indexName);
                         }); // indexes.forEach
-                    }); // Object.entries(schema[v])
+                    }); // Object.entries(scheme[v])
                 } // for loop
             } // onupgradeneeded
 
             request.onsuccess = (event) => {
+                console.debug('onsuccess')
                 const db = event.target.result;
 
                 const transactionBegin = (readOnly = false, ...storeNames) => {
@@ -117,14 +141,11 @@ Object.defineProperty(globalThis, 'dberta', {
                                 // getKey, getAll, getAllKeys, put
                                 const execute = (verb, ...args) => {
                                     return new Promise(async (resolve, reject) => {
-                                        try {
-                                            store[verb](...args).onsuccess = (event) => {
-                                                resolve(event.target.result);
-                                            };
-                                        } catch (err) {
-                                            if (transaction) { transaction.abort(); }
-                                            reject(err);
-                                        }
+                                        // errors bubble up to db
+                                        db.onerror = (event) => { reject(event.target.error) }
+                                        store[verb](...args).onsuccess = (event) => {
+                                            resolve(event.target.result);
+                                        };
                                     });
                                 }
 
@@ -232,7 +253,7 @@ Object.defineProperty(globalThis, 'dberta', {
                                                 : undefined;
 
                                             let threads = 0;
-                                            
+
                                             while (args.length) {
                                                 ++threads;
                                                 const indexName = args.shift();
@@ -406,6 +427,7 @@ Object.defineProperty(globalThis, 'dberta', {
                         });
                     },
                     get objectStoreNames() { return db.objectStoreNames; },
+                    get updated() { return isUpdated },
                     get version() { return db.version; },
                     get name() { return db.name; }
                 });
