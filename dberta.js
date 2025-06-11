@@ -43,13 +43,14 @@ Object.defineProperty(globalThis, 'dberta', {
 
                         const [keypath, ...indexes] = definition.split(/\s*(?:,)\s*/);
 
-                        const store = db.createObjectStore(storeName, {
-                            // if keyPath.length is 0 set keyPath
-                            // to undefined (out-of-line keys)
-                            keyPath: keypath
+                        // helper function to handle the different
+                        // types of keypaths in stores and indexes
+                        const prepareKeyPath = (keypath) => {
+                            return keypath
+                                .replace(/[\*\!\@]/, '')
                                 .split(/\+/)
                                 // at this point keypath is an array
-                                .map(elem => elem.replace(/[\@]/, ''))
+                                //.map(elem => elem.replace(/[\@]/, ''))
                                 .reduce((prev, cur, idx) => {
                                     switch (idx) {
                                         case 0:
@@ -61,7 +62,13 @@ Object.defineProperty(globalThis, 'dberta', {
                                         default:
                                             return [...prev, cur];
                                     }
-                                }) || undefined,
+                                });
+                        }
+
+                        const store = db.createObjectStore(storeName, {
+                            // if keyPath.length is 0 set keyPath
+                            // to undefined (out-of-line keys)
+                            keyPath: prepareKeyPath(keypath) || undefined,
                             autoIncrement: /^[\@]/.test(keypath)
                         });
 
@@ -69,27 +76,11 @@ Object.defineProperty(globalThis, 'dberta', {
 
                             store.createIndex(
                                 indexName.replace(/[\*!]/, ''),
-                                indexName
-                                    .split(/\+/)
-                                    // at this point every keypath is an array
-                                    .map(elem => elem.replace(/[\*!]/, ''))
-                                    .reduce((prev, cur, idx) => {
-                                        switch (idx) {
-                                            case 0:
-                                                // indexName is keyPath:
-                                                return cur;
-                                            case 1:
-                                                // indexName is compound key
-                                                return [prev, cur];
-                                            default:
-                                                return [...prev, cur];
-                                        }
-                                    }),
+                                prepareKeyPath(indexName),
                                 {
                                     multiEntry: /^\*/.test(indexName),
                                     unique: /^\!/.test(indexName)
                                 });
-
 
                             console.debug("index '%s' created", indexName);
                         }); // indexes.forEach

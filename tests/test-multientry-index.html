@@ -2,39 +2,44 @@
 <html lang="de">
 
 <head>
-    <title>Test Compound Index</title>
+    <title>Test MultiEntry Index</title>
     <meta charset="utf-8">
 
     <script src="../dberta.js"></script>
 </head>
 
 <body>
-    <h1>Test Compound Index</h1>
+    <h1>Test MultiEntry Index</h1>
     <p>For results refer to console.</p>
     <pre>
 expected output:
 [
     {
-        "firstname": "a",
+        "firstname": [
+            "a",
+            "A"
+        ],
         "lastname": "a",
         "id": 1
     },
     {
         "firstname": "a",
-        "lastname": "a",
-        "id": 5
-    },
-    {
-        "firstname": "a",
         "lastname": "b",
         "id": 4
-    },
+    }
+]
+
+expected output:
+[
     {
-        "firstname": "b",
+        "firstname": [
+            "b",
+            "B"
+        ],
         "lastname": "a",
         "id": 2
     }
-]
+]     
     </pre>
     <script>
 
@@ -42,7 +47,7 @@ expected output:
             try {
                 const berta = await dberta.open(document.title, {
                     1: {
-                        user: "@id,firstname, lastname, firstname+lastname"
+                        user: "@id,*firstname, lastname"
                     }
                 });
 
@@ -50,40 +55,46 @@ expected output:
 
                 if (berta.updated) {
                     [
-                        { firstname: 'a', lastname: 'a' },
-                        { firstname: 'b', lastname: 'a' },
+                        { firstname: ['a', 'A'], lastname: 'a' },
+                        { firstname: ['b', 'B'], lastname: 'a' },
                         { firstname: 'c', lastname: 'a' },
                         { firstname: 'a', lastname: 'b' },
-                        { firstname: 'a', lastname: 'a' },
                     ].forEach((item) => {
-                        tx.user.add(item).catch(err => console.error(err));
+                        tx.user.add(item).catch(err=>console.error(err));
                     });
                 }
-                const res = await tx.user.where('firstname+lastname', dberta.between(['a', 'a'], ['b', 'a']));
+
+                const res = await tx.user.where('firstname', 'a');
                 // expected output:
                 // [
                 //     {
-                //         "firstname": "a",
+                //         "firstname": [
+                //             "a",
+                //             "A"
+                //         ],
                 //         "lastname": "a",
                 //         "id": 1
                 //     },
                 //     {
                 //         "firstname": "a",
-                //         "lastname": "a",
-                //         "id": 5
-                //     },
-                //     {
-                //         "firstname": "a",
                 //         "lastname": "b",
                 //         "id": 4
-                //     },
+                //     }
+                // ]
+                console.log(res);
+                const res1 = await tx.user.where('firstname', 'B');
+                // expected output:
+                // [
                 //     {
-                //         "firstname": "b",
+                //         "firstname": [
+                //             "b",
+                //             "B"
+                //         ],
                 //         "lastname": "a",
                 //         "id": 2
                 //     }
                 // ]
-                console.log(res);
+                console.log(res1);
 
                 berta.close();
             } catch ({ name, message }) {
