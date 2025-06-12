@@ -50,7 +50,6 @@ Object.defineProperty(globalThis, 'dberta', {
                                 .replace(/[\*\!\@]/, '')
                                 .split(/\+/)
                                 // at this point keypath is an array
-                                //.map(elem => elem.replace(/[\@]/, ''))
                                 .reduce((prev, cur, idx) => {
                                     switch (idx) {
                                         case 0:
@@ -151,8 +150,8 @@ Object.defineProperty(globalThis, 'dberta', {
                                     cursor
                                         .update(Object.assign(cursor.value, payload))
                                         .onsuccess = (event) => {
-                                            // add the key of the updated record
-                                            result.push(event.target.result);
+                                            // add the updated record
+                                            result.push(event.target.source.value);
                                         };
                                 }
 
@@ -161,8 +160,8 @@ Object.defineProperty(globalThis, 'dberta', {
                                     cursor
                                         .delete()
                                         // onsuccess result is always 'undefined', so
-                                        // insert number of deleted records
-                                        .onsuccess = () => { result.push(result.length + 1); }
+                                        // add the deleted record
+                                        .onsuccess = (event) => { result.push(event.target.source.value); }
                                 }
 
                                 // called from queryAnd, updateAnd, deleteAnd
