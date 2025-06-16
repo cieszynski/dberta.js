@@ -133,10 +133,14 @@ Object.defineProperty(globalThis, 'dberta', {
                                     return new Promise(async (resolve, reject) => {
                                         // errors bubble up to db
                                         db.onerror = (event) => { reject(event.target.error) }
-                                        store[verb](...args).onsuccess = (event) => {
-                                            resolve(event.target.result);
-                                        };
-                                    });
+                                        try {
+                                            store[verb](...args).onsuccess = (event) => {
+                                                resolve(event.target.result);
+                                            };
+                                        } catch(err) {
+                                                reject(err);
+                                            }
+                                        });
                                 }
 
                                 // called from execute_and, execute_or
@@ -416,7 +420,7 @@ Object.defineProperty(globalThis, 'dberta', {
                             request.onsuccess = () => resolve(request.result);
                         });
                     },
-                    get objectStoreNames() { return db.objectStoreNames; },
+                    get objectStoreNames() { return Array.from(db.objectStoreNames); },
                     get updated() { return isUpdated },
                     get version() { return db.version; },
                     get name() { return db.name; }
