@@ -430,10 +430,10 @@ Object.defineProperty(globalThis, 'dberta', {
 
         // functions to build keyranges
         eq = (z) => IDBKeyRange.only(z);
-        le = (y) => IDBKeyRange.upperBound(y);
-        lt = (y) => IDBKeyRange.upperBound(y, true);
-        ge = (x) => IDBKeyRange.lowerBound(x);
-        gt = (x) => IDBKeyRange.lowerBound(x, true);
+        le = (x) => IDBKeyRange.upperBound(x);
+        lt = (x) => IDBKeyRange.upperBound(x, true);
+        ge = (y) => IDBKeyRange.lowerBound(y);
+        gt = (y) => IDBKeyRange.lowerBound(y, true);
         between = (x, y, bx, by) => IDBKeyRange.bound(x, y, bx, by);
         startsWith = (s) => IDBKeyRange.bound(s, s + '\uffff', true, true);
     }
