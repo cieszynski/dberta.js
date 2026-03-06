@@ -127,7 +127,7 @@ Object.defineProperty(globalThis, 'dberta', {
                                 }
 
                                 // called from 
-                                // add, count, delete, get,  
+                                // add, clear, count, delete, get,  
                                 // getKey, getAll, getAllKeys, put
                                 const execute = (verb, ...args) => {
                                     return new Promise(async (resolve, reject) => {
@@ -291,6 +291,8 @@ Object.defineProperty(globalThis, 'dberta', {
 
                                 obj[storeName] = {
                                     add(obj, key) { return execute('add', obj, key); },
+
+                                    clear() { return execute('clear'); },
 
                                     count(keyOrKeyRange) { return execute('count', keyOrKeyRange); },
 
